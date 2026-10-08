@@ -1,0 +1,17 @@
+node_modules/
+__pycache__/
+backend/artifacts/
+backend/data/processed/
+.venv/
+dist/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+.vscode/
+.idea/
+*.pkl
+*.joblib
+*.log
