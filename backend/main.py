@@ -17,7 +17,7 @@ from services import shap_service
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="SafeRouteAI API", version="1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+app.add_middleware(CORSMiddleware, allow_origins=["https://saferouteai-predict.netlify.app", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 
 DISCLAIMER = ("Risk predictions are generated from historical accident data and are intended for research and "
