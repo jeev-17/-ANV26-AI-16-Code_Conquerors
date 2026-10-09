@@ -1,6 +1,4 @@
-import pypandoc
-
-readme = r'''# SafeRouteAI — Explainable Accident Risk Analysis for Routes
+ SafeRouteAI — Explainable Accident Risk Analysis for Routes
 
 **An AI-powered route analysis platform that estimates accident risk across road segments using historical accident data and historical traffic-congestion features.**
 
