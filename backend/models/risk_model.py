@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from services import congestion_service as cong_svc
 from services import dataset_service as ds_svc
 from services.preprocessing import BOOL, CAT, FEATURES, NUMERIC, build_preprocessor, engineer_features
 
@@ -34,6 +35,13 @@ def main():
     log.info("Missing values: %s", report["missing_values"])
 
     X = engineer_features(raw)
+    if cong_svc.available():
+        cf = cong_svc.features_for(X["lat"].values, X["lng"].values, X["hour"].values)
+        for c in cong_svc.FEATURE_COLS:
+            X[c] = cf[c].values
+        log.info("Congestion features added")
+    else:
+        log.info("No congestion CSV found - training without congestion features")
     usable = [c for c in FEATURES if X[c].notna().any()]
     dropped = sorted(set(FEATURES) - set(usable))
     if dropped:
@@ -81,13 +89,21 @@ def main():
     }
     log.info("Accuracy %.3f | weighted F1 %.3f | macro F1 %.3f", metrics["accuracy"], metrics["f1_weighted"], metrics["f1_macro"])
 
+    # Score calibration: map the raw expected-severity score to a percentile of the raw-score distribution
+    # on HELD-OUT historical San Diego records (not the training rows), so 0-100 uses the full range.
+    raw_te = model.predict_proba(Pte) @ ((np.array(classes, dtype=float) - 1.0) / 3.0 * 100.0)
+    score_quantiles = np.percentile(raw_te, np.linspace(0, 100, 101)).tolist()
+    log.info("Raw score range on held-out data: %.1f - %.1f (median %.1f)", raw_te.min(), raw_te.max(), np.median(raw_te))
+
     defaults = {c: float(X[c].median()) for c in num}
     defaults.update({c: 0 for c in boo})
     defaults.update({c: str(X[c].mode().iloc[0]) for c in cat})
     meta = {"classes": classes, "numeric": num, "bool": boo, "categorical": cat, "features": usable,
             "defaults": defaults, "metrics": metrics, "data_report": {k: v for k, v in report.items() if k != "schema"},
-            "risk_score_formula": "score = 100 * sum_k P(severity=k) * (k-1)/3  (probability-weighted severity, 0-100)",
-            "algorithm": "XGBoost multi:softprob"}
+            "score_quantiles": score_quantiles,
+            "risk_score_formula": "raw = 100*sum_k P(severity=k)*(k-1)/3; score = percentile of raw among held-out historical San Diego accident records (0-100)",
+            "algorithm": "XGBoost multi:softprob",
+            "congestion_features": [c for c in usable if c.startswith("cong_")]}
     ART_MODEL.mkdir(parents=True, exist_ok=True); ART_PRE.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, ART_MODEL / "xgb_model.joblib")
     joblib.dump(pre, ART_PRE / "preprocessor.joblib")
