@@ -44,7 +44,13 @@ class RiskModel:
 
     def predict(self, df: pd.DataFrame):
         proba = self.model.predict_proba(self.transform(df))
-        score = np.clip(proba @ self.weights, 0, 100)
+        raw = np.clip(proba @ self.weights, 0, 100)          # probability-weighted severity, 0-100
+        q = self.meta.get("score_quantiles")
+        if q:  # calibrate to percentile of historical San Diego raw scores (documented in meta.json)
+            xp = np.array(q, dtype=float) + np.arange(len(q)) * 1e-9   # strictly increasing for interp
+            score = np.interp(raw, xp, np.linspace(0, 100, len(q)))
+        else:                                                 # older artifacts: fall back to raw score
+            score = raw
         return proba, score
 
 
